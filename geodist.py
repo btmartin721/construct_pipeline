@@ -9,11 +9,14 @@
 ### https://cran.r-project.org/web/packages/conStruct/index.html
 
 import argparse
+import itertools
+import operator
 import sys
 
 import numpy as np
 import pandas as pd
 
+from collections import defaultdict
 from geopy import distance
 from pyproj import Proj
 
@@ -23,6 +26,15 @@ def main():
 
     arguments = Get_Arguments()
 
+    validate_file_exists(arguments.coords)
+    validate_file_exists(arguments.popmap)
+
+    popmap = read_popmap(arguments.popmap)
+    popcounts = get_popcounts(popmap)
+
+    popd = get_popdict(popmap)
+    print(popd)
+
     lat = arguments.lat.strip().lower()
     long = arguments.long.strip().lower()
 
@@ -30,9 +42,61 @@ def main():
     df.columns = [x.strip().lower() for x in df.columns]
     #print(df.columns)
 
-
-
     return 0
+
+def get_popdict(list_of_tuples):
+    # Input is list of tuples, returns dictionary of lists
+    d = defaultdict(list)
+    for v, k in list_of_tuples:
+        d[k].append(v)
+    return d
+
+def get_popcounts(list_of_tuples):
+
+    ind_list = list()
+    popinfo = list()
+    popcounts = list()
+    d = defaultdict(str)
+
+    for ind, pop in list_of_tuples:
+        if not pop in popinfo:
+            popinfo.append(pop)
+            d[pop]=1
+            ind_list.append(ind)
+        else:
+            d[pop]+=1
+
+    print("\nDetected {} populations with sample counts as shown below:".format(len(popinfo)))
+
+    for pop in popinfo:
+        print("{}: {}".format(pop, d[pop]))
+        my_tuple = (pop, d[pop])
+        popcounts.append(my_tuple)
+
+    return popcounts
+
+def read_popmap(file):
+
+    list_of_tuples = list()
+    with open(file, "r") as fin:
+        for line in fin:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split()
+            my_tuple = (cols[0], cols[1])
+            list_of_tuples.append(my_tuple)
+    return list_of_tuples
+
+
+def validate_file_exists(filename):
+
+    try:
+        file = open(filename, "r")
+        file.close()
+    except IOError:
+        print("\nError: The file " + filename + " does not exist or could not be read.\n")
+        sys.exit(1)
 
 def Get_Arguments():
 # Parse command-line arguments.
@@ -56,6 +120,14 @@ def Get_Arguments():
                                 type=str,
                                 required=True,
                                 help="String; Column name for longitude coordinates")
+    required_args.add_argument("-p", "--popmap",
+                                type=str,
+                                required=True,
+                                help="String; Filename for population map")
+    required_args.add_argument("-i", "--id",
+                                type=str,
+                                required=True,
+                                help="String; Column name for individual IDs")
 
     ## Optional Arguments
     optional_args.add_argument("-f", "--format",
