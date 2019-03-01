@@ -20,7 +20,7 @@ import geopandas as gp
 
 from collections import defaultdict
 from geopy import distance
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 
 
 
@@ -63,50 +63,117 @@ def main():
 
         df = add_latlon_to_df(df, latlon_list)
 
+    else:
+        latlon_list = zip(df[lat_col].tolist(), df[lon_col].tolist())
+        #print(latlon_list)
+        df = add_latlon_to_df(df, latlon_list)
+
     # Merge df and popdf on arguments.id. Will drop individuals not in popmap.
     df2 = df.merge(popdf, how="inner", on=arguments.id)
     df2.dropna(subset=["DD_LATCOL", "DD_LONCOL"], inplace=True)
 
-    calculate_greatcircle_distance(df2)
+    # Initialize coordinate reference system; can be specified by user.
+    e = "epsg:" + str(arguments.epsg)
+    crs = {"init": e}
+    geodf = coordinates2polygons(df2, crs)
 
+    if arguments.polygons:
+        write_shapefile(geodf, arguments.polygons)
+
+    centroids_df = get_centroids(geodf, crs)
+
+    if arguments.centroids:
+        write_shapefile(centroids_df, arguments.centroids)
+
+    distances = calculate_greatcircledist(centroids_df)
+
+    make_pairwise_matrix(distances, centroids_df)
     return 0
 
-def calculate_greatcircle_distance(df):
-    #geometry = [gp.Point(xy) for xy in zip(grouped_lon, grouped_lat)]
+def make_pairwise_matrix(dist_df, gdf):
+    #print(dist_df)
+    gdf = pd.merge(gdf, dist_df, left_index=True, right_index=True)
+    print(gdf)
+
+def calculate_greatcircledist(gdf):
+    list_of_tuples = list(map(lambda p: (p.y, p.x), gdf["geometry"]))
+    result = [[distance.great_circle(p1, p2) for p2 in list_of_tuples] for p1 in list_of_tuples]
+    res_df = pd.DataFrame(result)
+    return res_df
+
+#def get_distance(col):
+    #end = gdf.ix[col.name]["final_coords_4_df"]
+    #return gdf["final_coords_4_df"].apply(great_circle, args=(end), ellipsoid="GRS80")
+
+def get_centroids(gdf, crs):
+    """
+    Gets the centroids from shapely.geometry.Polygon objects
+    Inputs:
+        geopandas.GeoDataFrame object
+        coordinate reference system object (set via command-line)
+    Returns:
+        New geopandas.GeoDataFrame with centroids as geometry object.
+    """
+    centroids = gdf.copy()
+    centroids["geometry"] = centroids["geometry"].centroid
+    centroids.crs = gdf.crs
+    return centroids
+
+def write_shapefile(gdf, shapefile):
+    """
+    Writes a shapefile from geopandas.GeoDataFrame objects
+    Input:
+        geopandas.GeoDataFrame (geopandas.GeoDataFrame)
+        Shapefile name as defined by command-line argument
+    Returns:
+        Nothing.
+    """
+    gdf.to_file(driver = "ESRI Shapefile", filename = shapefile)
+
+def coordinates2polygons(df, crs):
+    """
+    Converts lat/long columns from pandas dataframe to Polygon objects
+    Grouped by population ID from popmap
+
+    Input:
+        pandas.DataFrame containing lat/lon coordinates columns (pandas.DataFrame)
+        epsg geodetic parameter dataset ID to specify coordinate reference system (String)
+            Default = 4269 (for NAD83)
+    Returns:
+        GeoPandas dataframe with polygon objects (geopandas.GeoDataFrame)
+    """
+    # Aggregates lat/lon coordinates into pandas.DataFrame column
     df["coordinates"] = list(zip(df.DD_LONCOL, df.DD_LATCOL))
-    df["coordinates"] = df["coordinates"].apply(Point)
-    #print(df["coordinates"])
-    gdf = gp.GeoDataFrame(df, geometry="coordinates")
 
-    grouped = gdf.groupby("POPDF")
-    grouped_coordinates = grouped["coordinates"]
+    # Construct shapely.geometry Point objects from lat/lon
+    df["geometry"] = df["coordinates"].apply(Point)
 
-    #centroids = gdf.groupby("POPDF")["coordinates"].centroid
+    # Construct geopandas.GeoDataFrame using shapely.geometry points
+    gdf = gp.GeoDataFrame(df, geometry="geometry", crs=crs)
 
-    for key, values in grouped_coordinates:
-        
-        #print(centroids)
+    # Extract the coordinates from the shapely.geometry.Point object
+    gdf["geometry"] = gdf["geometry"].apply(lambda x: x.coords[0])
 
-    #print(grouped_coordinates.apply(lambda x: x.centroid))
-    #centroids = grouped["coordinates"].agg(lambda x: shapely.ops.linemerge(x.values).centroid)
-    #centroids = gdf.groupby("POPDF")["coordinates"].apply(lambda x: x.values.centroid)
-    #print(centroids)
-    #for index, row in gdf.iterrows():
+    # Group by population
+    #   1. Get all coordinates for each population as a list
+    #   2. Convert that list to shapely.geometry.Polygon objects
+    gdf = gdf.groupby("POPDF")["geometry"].apply(lambda x: Polygon(x.tolist())).reset_index()
 
-    #print(gdf.head())
-    #centroids = gdf.groupby("POPDF")["coordinates"].agg(lambda x: shapely.ops.linemerge(x.values).centroid)
+    # Save result to new GeoDataFrame
+    gdf = gp.GeoDataFrame(gdf, geometry="geometry", crs=crs)
 
-    #print(centroids)
+    # This fixes invalid polygons
+    gdf["geometry"] = gdf["geometry"].buffer(0)
 
-    #for index, row in grouped_points.iterrows():
-        #print(index, gp.GeoSeries(grouped_points.centroid))
-    #print(gdf.head())
+    return gdf
 
 def add_latlon_to_df(df, list_of_tuples):
     """
     Adds lat and lon columns to pandas dataframe from list of tuples
-    Input: Pandas DataFrame (pandas.DataFrame)
-    Returns: Modified pandas DataFrame (pandas.DataFrame)
+    Input:
+        Pandas DataFrame (pandas.DataFrame)
+    Returns:
+        Modified pandas DataFrame (pandas.DataFrame)
     """
     lat = list()
     lon = list()
@@ -310,6 +377,20 @@ def Get_Arguments():
                                 nargs="?",
                                 help="String; Define epsg for spatial projection; "
                                 "default=4269 (NAD83)")
+    optional_args.add_argument("--polygons",
+                                type=str,
+                                required=False,
+                                default=None,
+                                nargs="?",
+                                help="String; Write population polygons to shapefile; "
+                                "if toggled, specify shapefile name as string; default = off")
+    optional_args.add_argument("--centroids",
+                                type=str,
+                                required=False,
+                                default=None,
+                                nargs="?",
+                                help="String; Write centroids of each population to shapefile; "
+                                "if toggled, specify shapefile name as string; default = off")
     optional_args.add_argument("-h", "--help",
                                 action="help",
                                 help="Displays this help menu")
