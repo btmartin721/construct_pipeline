@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 
 ### This script was written by Bradley T. Martin, PhD candidate,
-### University of Arkansas, Dept. of Biological Sciences,
-### btm002@email.uark.edu
-###
-### It is intended to calculate pairwise geographic distances for
-### input into the conStruct R package:
+### University of Arkansas, Dept. of Biological Sciences
+### Please submit any issues or bug reports to: btm002@email.uark.edu
+
+### The script is intended to calculate pairwise geographic distances between
+### populations for input into the conStruct R package:
 ### https://cran.r-project.org/web/packages/conStruct/index.html
 
 import argparse
-import math
 import shapely.ops
 import sys
 import utm
@@ -23,8 +22,6 @@ from geopy import distance
 from shapely.geometry import Point, Polygon
 
 
-
-
 def main():
 
     arguments = Get_Arguments()
@@ -35,7 +32,9 @@ def main():
     popmap = read_popmap(arguments.popmap)
     popcounts = get_popcounts(popmap)
 
-    popdf = pd.DataFrame.from_records(popmap, columns=[arguments.id, "POPDF"])
+    id_col = arguments.id.lower().strip()
+
+    popdf = pd.DataFrame.from_records(popmap, columns=[id_col, "POPDF"])
 
     popd = get_popdict(popmap)
 
@@ -69,41 +68,59 @@ def main():
         df = add_latlon_to_df(df, latlon_list)
 
     # Merge df and popdf on arguments.id. Will drop individuals not in popmap.
-    df2 = df.merge(popdf, how="inner", on=arguments.id)
+    df2 = df.merge(popdf, how="inner", on=id_col)
     df2.dropna(subset=["DD_LATCOL", "DD_LONCOL"], inplace=True)
 
-    # Initialize coordinate reference system; can be specified by user.
+    # Initialize coordinate reference system
+    # Can be specified by user with --epsg option.
     e = "epsg:" + str(arguments.epsg)
     crs = {"init": e}
     geodf = coordinates2polygons(df2, crs)
 
+    # Write polygons to shapefile if option toggled on.
     if arguments.polygons:
         write_shapefile(geodf, arguments.polygons)
 
     centroids_df = get_centroids(geodf, crs)
 
+    # Write centroids to shapefile if option toggled on.
     if arguments.centroids:
         write_shapefile(centroids_df, arguments.centroids)
 
+    # Calculate great circle distance using geopy.distance
     distances = calculate_greatcircledist(centroids_df)
 
-    make_pairwise_matrix(distances, centroids_df)
+    # Replace distances index with population IDs
+    distances.set_index(centroids_df["POPDF"], inplace=True)
+
+    # Write matrix to CSV
+    write_matrix(distances, arguments.output)
+
     return 0
 
-def make_pairwise_matrix(dist_df, gdf):
-    #print(dist_df)
-    gdf = pd.merge(gdf, dist_df, left_index=True, right_index=True)
-    print(gdf)
+def write_matrix(dist, outfile):
+    """
+    Writes geographic distance matrix to output file as csv
+    Input:
+        Pandas DataFrame (pandas.DataFrame)
+        Output filename obtained from argparse (String)
+    Returns:
+        None
+    """
+    dist.to_csv(outfile, header=False, index=True)
 
 def calculate_greatcircledist(gdf):
+    """
+    Calculates Great Circle Distance from coordinates in GeoPandas GeoDataFrame
+    Input:
+        Geopandas DataFrame (GeoDataFrame)
+    Returns:
+        New pandas.DataFrame with Geographic Distance matrix (pandas.DataFrame)
+    """
     list_of_tuples = list(map(lambda p: (p.y, p.x), gdf["geometry"]))
-    result = [[distance.great_circle(p1, p2) for p2 in list_of_tuples] for p1 in list_of_tuples]
+    result = [[distance.great_circle(p1, p2).km for p2 in list_of_tuples] for p1 in list_of_tuples]
     res_df = pd.DataFrame(result)
     return res_df
-
-#def get_distance(col):
-    #end = gdf.ix[col.name]["final_coords_4_df"]
-    #return gdf["final_coords_4_df"].apply(great_circle, args=(end), ellipsoid="GRS80")
 
 def get_centroids(gdf, crs):
     """
@@ -382,6 +399,7 @@ def Get_Arguments():
                                 required=False,
                                 default=None,
                                 nargs="?",
+                                const="polygons",
                                 help="String; Write population polygons to shapefile; "
                                 "if toggled, specify shapefile name as string; default = off")
     optional_args.add_argument("--centroids",
@@ -389,8 +407,16 @@ def Get_Arguments():
                                 required=False,
                                 default=None,
                                 nargs="?",
+                                const="centroids",
                                 help="String; Write centroids of each population to shapefile; "
                                 "if toggled, specify shapefile name as string; default = off")
+    optional_args.add_argument("-o", "--output",
+                                type=str,
+                                required=False,
+                                default="out.geodist.csv",
+                                nargs="?",
+                                help="String; Specify output filename for "
+                                "geodist matrix; default = out.geodist.txt")
     optional_args.add_argument("-h", "--help",
                                 action="help",
                                 help="Displays this help menu")
