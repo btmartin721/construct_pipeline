@@ -9,7 +9,6 @@
 ### https://cran.r-project.org/web/packages/conStruct/index.html
 
 import argparse
-import shapely.ops
 import sys
 import utm
 
@@ -64,9 +63,7 @@ def main():
 
     else:
         latlon_list = zip(df[lat_col].tolist(), df[lon_col].tolist())
-        #print(latlon_list)
         df = add_latlon_to_df(df, latlon_list)
-
     # Merge df and popdf on arguments.id. Will drop individuals not in popmap.
     df2 = df.merge(popdf, how="inner", on=id_col)
     df2.dropna(subset=["DD_LATCOL", "DD_LONCOL"], inplace=True)
@@ -76,7 +73,6 @@ def main():
     e = "epsg:" + str(arguments.epsg)
     crs = {"init": e}
     geodf = coordinates2polygons(df2, crs)
-
     # Write polygons to shapefile if option toggled on.
     if arguments.polygons:
         write_shapefile(geodf, arguments.polygons)
@@ -93,10 +89,27 @@ def main():
     # Replace distances index with population IDs
     distances.set_index(centroids_df["POPDF"], inplace=True)
 
+    # Write coordinates to CSV
+    write_coords(centroids_df, arguments.coord_outfile)
+
     # Write matrix to CSV
     write_matrix(distances, arguments.output)
-
     return 0
+
+def write_coords(gdf, outfile):
+    """
+    Writes comma-separated lon/lat coordinates to file
+    Input:
+        geopandas DataFrame with point objects (geopandas.GeoDataFrame)
+    Returns:
+        None
+    """
+    gdf["COORDS"] = gdf["geometry"].apply(lambda x: x.coords[0])
+    gdf["Lon"] = gdf["COORDS"].apply(lambda x: x[0])
+    gdf["Lat"] = gdf["COORDS"].apply(lambda x: x[1])
+    columns = ["Lon", "Lat"]
+    gdf.to_csv(outfile, header = True, index = False, columns = columns)
+
 
 def write_matrix(dist, outfile):
     """
@@ -180,7 +193,7 @@ def coordinates2polygons(df, crs):
     gdf = gp.GeoDataFrame(gdf, geometry="geometry", crs=crs)
 
     # This fixes invalid polygons
-    gdf["geometry"] = gdf["geometry"].buffer(0)
+    gdf["geometry"] = gdf["geometry"].buffer(0.1)
 
     return gdf
 
@@ -286,6 +299,11 @@ def get_popcounts(list_of_tuples):
         my_tuple = (pop, d[pop])
         popcounts.append(my_tuple)
     print("\n")
+
+    for pop in popinfo:
+        assert int(d[pop]) >= 3, \
+        "At least three individuals per population are required to create the polygons"
+
 
     return popcounts
 
@@ -417,6 +435,14 @@ def Get_Arguments():
                                 nargs="?",
                                 help="String; Specify output filename for "
                                 "geodist matrix; default = out.geodist.txt")
+    optional_args.add_argument("--coord_outfile",
+                                type=str,
+                                required=False,
+                                default="coords.out.csv",
+                                nargs="?",
+                                help="String; Specify output file for lat/lon "
+                                "coordinates (comma-separated; "
+                                "default = coords.out.csv")
     optional_args.add_argument("-h", "--help",
                                 action="help",
                                 help="Displays this help menu")
