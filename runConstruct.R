@@ -15,6 +15,15 @@ option_list <- list(make_option(c("-s", "--str"),
                                  default=NULL,
                                  help="Input popmap filename; default = NULL",
                                  metavar="character"),
+                    make_option(c("-g", "--geodist"),
+                                type="character",
+                                default=NULL,
+                                help="Input geoDist matrix file (as CSV)",
+                                metavar="character"),
+                    make_option(c("-c", "--coords"),
+                                type="character",
+                                default=NULL,
+                                help="Input coordinates file (as CSV)"),
                     make_option(c("-w", "--wd"),
                                 type="character",
                                 default="./",
@@ -62,14 +71,60 @@ setwd(opt$wd)
 # Read input files specified on command-line
 str.file <- read.infile(opt$str)
 popmap.file <- read.infile(opt$popmap)
+geo.dist <- read.infile(opt$geodist)
+#coords <- read.infile(opt$coords)
+
+str.file <- read.csv("BOX_filteredPops_FINAL.str", 
+         sep="\t", 
+         header=FALSE,
+         stringsAsFactors = FALSE)
+
+
+pop.index <- str.file$V2
+
+popmap.file <- read.csv("BOX_popmap_FINAL4construct.txt",
+                        sep="\t",
+                        header = FALSE,
+                        stringsAsFactors = FALSE)
+geo.dist <- read.csv("BOX_geodist.csv", 
+                     header = FALSE,
+                     stringsAsFactors = FALSE)
+
+coords <- read.csv("coords.out.csv",
+                   header = TRUE,
+                   stringsAsFactors = FALSE)
 
 # Formatting data
 #vignette(topic="format-data",package="conStruct")
 
-geodist <- conStruct.data$geoDist
-afreq <- conStruct.data$allele.frequencies
-coods <- conStruct.data$coords
+afreq <- structure2conStruct(infile = opt$str, 
+                      onerowperind = FALSE, 
+                      start.loci = 3, 
+                      missing.datum = -9, 
+                      outfile = "construct.out")
 
-pop.data.matrix <- matrix(NA, nrow=4, ncol=ncol(afreq))
+afreq <- structure2conStruct(infile = "BOX_filteredPops_FINAL.str", 
+                             onerowperind = FALSE, 
+                             start.loci = 3, 
+                             missing.datum = -9, 
+                             outfile = "construct.out")
+
+pop.data.matrix <- matrix(NA,nrow=nrow(coords),ncol=ncol(afreq))
+for(i in 1:nrow(pop.data.matrix)){
+  pop.data.matrix[i,] <- colMeans(
+    afreq[
+      which(pop.index==i),,
+      drop=FALSE
+      ],na.rm=TRUE
+  )
+}
+
+print(nrow())
+print(pop.data.matrix)
+#geodist <- conStruct.data$geoDist
+#afreq <- conStruct.data$allele.frequencies
+#coods <- conStruct.data$coords
+
+#pop.data.matrix <- matrix(NA, nrow=4, ncol=ncol(afreq))
 
 
