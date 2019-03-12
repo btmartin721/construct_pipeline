@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gp
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from geopy import distance
 from shapely.geometry import Point, Polygon
 
@@ -93,7 +93,7 @@ def main():
     write_coords(centroids_df, arguments.coord_outfile)
 
     # Write matrix to CSV
-    write_matrix(distances, arguments.output)
+    write_matrix(distances, arguments.geodist)
     return 0
 
 def write_coords(gdf, outfile):
@@ -108,7 +108,7 @@ def write_coords(gdf, outfile):
     gdf["Lon"] = gdf["COORDS"].apply(lambda x: x[0])
     gdf["Lat"] = gdf["COORDS"].apply(lambda x: x[1])
     columns = ["Lon", "Lat"]
-    gdf.to_csv(outfile, header = True, index = False, columns = columns)
+    gdf.to_csv(outfile, sep="\t", header = True, index = False, columns = columns)
 
 
 def write_matrix(dist, outfile):
@@ -120,7 +120,7 @@ def write_matrix(dist, outfile):
     Returns:
         None
     """
-    dist.to_csv(outfile, header=False, index=True)
+    dist.to_csv(outfile, sep="\t", header=False, index=True)
 
 def calculate_greatcircledist(gdf):
     """
@@ -187,7 +187,7 @@ def coordinates2polygons(df, crs):
     # Group by population
     #   1. Get all coordinates for each population as a list
     #   2. Convert that list to shapely.geometry.Polygon objects
-    gdf = gdf.groupby("POPDF")["geometry"].apply(lambda x: Polygon(x.tolist())).reset_index()
+    gdf = gdf.groupby("POPDF", sort = False)["geometry"].apply(lambda x: Polygon(x.tolist())).reset_index()
 
     # Save result to new GeoDataFrame
     gdf = gp.GeoDataFrame(gdf, geometry="geometry", crs=crs)
@@ -283,7 +283,7 @@ def get_popcounts(list_of_tuples):
     """
     popinfo = list()
     popcounts = list()
-    d = defaultdict(str)
+    d = OrderedDict()
 
     for ind, pop in list_of_tuples:
         if not pop in popinfo:
@@ -428,21 +428,21 @@ def Get_Arguments():
                                 const="centroids",
                                 help="String; Write centroids of each population to shapefile; "
                                 "if toggled, specify shapefile name as string; default = off")
-    optional_args.add_argument("-o", "--output",
+    optional_args.add_argument("-g", "--geodist",
                                 type=str,
                                 required=False,
-                                default="out.geodist.csv",
+                                default="out.geodist.txt",
                                 nargs="?",
                                 help="String; Specify output filename for "
                                 "geodist matrix; default = out.geodist.txt")
     optional_args.add_argument("--coord_outfile",
                                 type=str,
                                 required=False,
-                                default="coords.out.csv",
+                                default="coords.out.txt",
                                 nargs="?",
                                 help="String; Specify output file for lat/lon "
-                                "coordinates (comma-separated; "
-                                "default = coords.out.csv")
+                                "coordinates (Tab-delimited; "
+                                "default = coords.out.txt")
     optional_args.add_argument("-h", "--help",
                                 action="help",
                                 help="Displays this help menu")

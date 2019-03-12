@@ -4,4 +4,7 @@
 *.csv
 *.phy
 *.zip
-
+*.Robj
+*.pdf
+*.RData
+*.txt
