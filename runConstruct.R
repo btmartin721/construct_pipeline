@@ -107,6 +107,7 @@ required.args(opt$prefix, "--prefix")
 required.args(opt$str, "--str")
 required.args(opt$coords, "--coords")
 required.args(opt$K, "--K")
+required.args(opt$geodist, "--geodist")
 
 # Read input files specified on command-line
 str.file <- read.infile(opt$str, FALSE)
@@ -114,11 +115,15 @@ popmap.file <- read.infile(opt$popmap, FALSE)
 coords <- read.infile(opt$coords, TRUE)
 geo.dist <- read.infile(opt$geodist, FALSE)
 
+# Append K value to afreq filename
+opt$afreq <- paste0(opt$afreq, "_", opt$K)
 
 # Get population ID vector from STRUCTURE file
 # For use with getting population allele frequency means
 oneInd.str <- str.file[!duplicated(str.file$V1), ]
 pop.index <- oneInd.str$V2
+
+pop.ids <- geo.dist[,1]
 
 # Remove first column that contains population IDs
 geo.dist <- geo.dist[,2:ncol(geo.dist)]
@@ -127,10 +132,10 @@ geo.dist <- geo.dist[,2:ncol(geo.dist)]
 geo.distMat <- data.matrix(geo.dist)
 coordMat <- data.matrix(coords)
 
-# Error handling if allele frequency RData file already exists
+# Exception handling if allele frequency RData file already exists
 if (file.exists(paste0(opt$afreq, ".RData"))) {
-  stop(paste0("\n\nError: The --afreq file '", opt$afreq, ".RData' already exists; aborting program\n"))
-}
+    file.remove(paste0(opt$afreq, ".RData"))
+  }
 
 # Convert STRUCTURE file to conStruct allele frequency format
 afreq <- structure2conStruct(infile = opt$str, 
@@ -166,59 +171,38 @@ print(paste0("--niter = ", opt$niter))
 print(paste0("--K = ", opt$K))
 print(paste0("--afreq = ", opt$afreq))
 
+# Set prefixes for spatial (sp) and nonspatial (nsp) models
+sp.prefix <- paste0(opt$prefix, "_spK", opt$K)
+nsp.prefix <- paste0(opt$prefix, "_nspK", opt$K)
 
-# Spatial model if geodist file is provided
-if (!is.null(opt$geoDist)) {
-  if (is.null(opt$popmap)) {
-    stop("\n\nError: --popmap file must be provided if spatial option is used\n")
-  }
-  
-  construct.run <- conStruct(spatial = TRUE,
+# Spatial model
+construct.sp <- conStruct(spatial = TRUE,
                              K = opt$K,
                              freqs = pop.data.matrix,
                              geoDist = geo.distMat,
                              coords = coordMat,
-                             prefix = opt$prefix,
+                             prefix = sp.prefix,
                              n.chains = opt$nchains,
                              n.iter = opt$niter,
                              make.figs = TRUE,
                              save.files = TRUE)
   
 # Non-spatial model
-}else{
-  
-  # If popmap is not provided
-  if (is.null(opt$popmap)) {
-      construct.run <- conStruct(spatial = FALSE,
-                             K = opt$K,
-                             freqs = afreq,
-                             geoDist = NULL,
-                             coords = coordMat,
-                             prefix = opt$prefix,
-                             n.chains = opt$nchains,
-                             n.iter = opt$niter,
-                             make.figs = TRUE,
-                             save.files = TRUE)
-  }else{
-    
-    construct.run <- conStruct(spatial = FALSE,
+construct.nsp <- conStruct(spatial = FALSE,
                                K = opt$K,
                                freqs = pop.data.matrix,
                                geoDist = NULL,
                                coords = coordMat,
-                               prefix = opt$prefix,
+                               prefix = nsp.prefix,
                                n.chains = opt$nchains,
                                n.iter = opt$niter,
                                make.figs = TRUE,
                                save.files = TRUE)
-    
-  }
-  
+
+
+if(!file.exists("environment.RData")) {
+  save(pop.data.matrix, geo.distMat, coordMat, sp.prefix, nsp.prefix, pop.ids, opt, file = "environment.RData")
 }
 
+
 print(paste0("conStruct analysis for K = ", opt$K, " finished!"))
-
-load(paste0(opt$prefix, "_data.block.Robj"))
-load(paste0(opt$prefix, "_conStruct.results.Robj"))
-
-
