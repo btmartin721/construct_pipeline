@@ -51,6 +51,11 @@ option_list <- list(make_option(c("-s", "--str"),
                                 type="character",
                                 default="construct.out",
                                 help="Specify allele frequency file to output",
+                                metavar="character"),
+                    make_option(c("-o", "--outdir"),
+                                type="character",
+                                default="./",
+                                help="Specify directory to write output files",
                                 metavar="character"))
 
 opt_parser <- OptionParser(option_list=option_list,
@@ -175,6 +180,17 @@ print(paste0("--afreq = ", opt$afreq))
 sp.prefix <- paste0(opt$prefix, "_spK", opt$K)
 nsp.prefix <- paste0(opt$prefix, "_nspK", opt$K)
 
+dir.create(opt$outdir)
+setwd(opt$outdir)
+
+if (opt$K == 1) {
+  
+  if (file.exists(paste0(opt$prefix, "_environment.RData"))) {
+    print(paste0("\n\nWarning: The file ", opt$prefix, "_environment.RData already exists; renaming it to ", opt$prefix, "_tempenv.RData\n"))
+    file.rename(paste0(opt$prefix, "_environment.RData"), paste0(opt$prefix, "tempenv.RData"))
+  }
+}
+
 # Spatial model
 construct.sp <- conStruct(spatial = TRUE,
                              K = opt$K,
@@ -199,10 +215,17 @@ construct.nsp <- conStruct(spatial = FALSE,
                                make.figs = TRUE,
                                save.files = TRUE)
 
-
-if(!file.exists("environment.RData")) {
-  save(pop.data.matrix, geo.distMat, coordMat, sp.prefix, nsp.prefix, pop.ids, opt, file = "environment.RData")
+if (opt$K == 1) {
+  save(pop.data.matrix, 
+       geo.distMat, 
+       coordMat, 
+       sp.prefix, 
+       nsp.prefix, 
+       pop.ids, 
+       file = paste0(opt$prefix, "_environment.RData"))
+  saveRDS(opt, file = "arguments.RDS")
 }
+
 
 
 print(paste0("conStruct analysis for K = ", opt$K, " finished!"))

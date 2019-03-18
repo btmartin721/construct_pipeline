@@ -36,8 +36,17 @@ option_list <- list(make_option(c("-k", "--minK"),
                     make_option(c("-F", "--saveFigs"),
                                 action="store_false",
                                 default=TRUE,
-                                help="Boolean; Don't save figures from cross-validation; default=TRUE"))
-
+                                help="Boolean; Don't save figures from cross-validation; default=TRUE"),
+                    make_option(c("-o", "--outdir"),
+                                type="character",
+                                default="./",
+                                help="Specify directory for output files; will be created if doesn't exist",
+                                metavar="character"),
+                    make_option(c("-w", "--wd"),
+                                type="character",
+                                default=NULL,
+                                help="Specify directory containing output from runConstruct.R",
+                                metavar="character"))
                     
 
 opt_parser <- OptionParser(option_list=option_list,
@@ -66,8 +75,12 @@ required.args(opt2$minK, "--minK")
 required.args(opt2$maxK, "--maxK")
 required.args(opt2$nreps, "--nreps")
 required.args(opt2$nodes, "--nodes")
+required.args(opt2$wd, "--wd")
 
 library("conStruct")
+library("parallel")
+library("foreach")
+library("doParallel")
 
 # If more than one node is specified parallel = TRUE; otherwise FALSE
 if (opt2$nodes > 1) {
@@ -76,16 +89,42 @@ if (opt2$nodes > 1) {
   parallel <- FALSE
 }
 
+# Get path to script's directory
+script.dir <- getwd()
+
+# Change to output directory from runConstruct.R
+setwd(opt2$wd)
+
+if (!file.exists("arguments.RDS")) {
+  stop(paste0("\n\nError: The file arguments.RDS does not exist in ", opt2$wd, "; this directory should contain all results from runConstruct.R\n"))
+}
+
+# Read command-line arguments from runConstruct.R
+opt <- readRDS(file = "arguments.RDS")
+
 # Make sure runConstruct.R has been run first to generate the environment.RData file
-if (!file.exists("environment.RData")) {
-  stop("Error: The environment.RData file could not be found. Make sure you have run run.Construct.R first")
+if (!file.exists(paste0(opt$prefix, "_environment.RData"))) {
+  stop(paste0("\n\nError: The file ", opt$prefix, "_environment.RData could not be found in ", opt2$wd, "; this directory should contain all results from runConstruct.R\n"))
 }
 
 # load runConstruct.R environment
-load("environment.RData")
+load(paste0(opt$prefix, "_environment.RData"))
 
 # Prefix for cross-validation analyses
 xval.prefix <- paste0(opt$prefix, "_xval")
+
+setwd(script.dir)
+
+# Change to output directory
+dir.create(opt2$outdir)
+setwd(opt2$outdir)
+
+if (parallel) {
+  # For parallelization
+  # Ran it like this because had issues with clean exit due to parallel not stopping
+  cl <- makeCluster(opt2$nodes, type="FORK")
+  registerDoParallel(cl)
+}
 
 # Run cross-validation
 conStruct.xvals <- x.validation(train.prop = opt2$trainProp,
@@ -101,6 +140,10 @@ conStruct.xvals <- x.validation(train.prop = opt2$trainProp,
                                 save.files = opt2$saveFiles,
                                 parallel = parallel,
                                 n.nodes = opt2$nodes)
+if(parallel) {
+  # End parallelization
+  stopCluster(cl)
+}
 
 # spatial results from cross-validation analysis
 sp.results <- as.matrix(
@@ -170,8 +213,11 @@ for (i in opt2$minK:opt2$maxK) {
   all.nsp <- c(all.nsp, paste0(opt$prefix, "_nspK", i))
 }
 
-print(length(all.sp))
-print(length(all.nsp))
+# Change to submission directory
+setwd(script.dir)
+
+# Change to runConstruct.R directory
+setwd(opt2$wd)
 
 # Load --minK value's conStruct.resuls and data.block Robj files
 load(paste0(all.sp[1], "_data.block.Robj"))
@@ -225,6 +271,12 @@ for (i in 2:opt2$maxK) {
   tmp.nsp <- conStruct.results[[1]]$MAP$admix.proportions[,tmp.order.nsp]
 }
 
+# Change back to script directory
+setwd(script.dir)
+
+# Change to output directory for this script.
+setwd(opt2$outdir)
+
 # Write plots to PDF
 pdf(file = paste0(opt$prefix, "_layerContributions.out.pdf"))
 
@@ -240,3 +292,4 @@ barplot(layer.contributions.nsp,
         ylab="layer contributions (non-spatial)",
         names.arg=paste0("K=",opt2$minK:opt2$maxK))
 dev.off()
+
