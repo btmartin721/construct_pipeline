@@ -274,4 +274,7 @@ Required Input:
 
 The script will output lots of files, so it is recommended that you specify an output directory with the --outdir option. It is also  highly recommended that you inspect the cross-validation replicate traces for convergence. 
 
+Finally, run the script as follows:  
+
+`Rscript runXvalidation.R [options...]`  
 
