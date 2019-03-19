@@ -156,40 +156,48 @@ Call the help menu with:
 `Rscript runConstruct.R -h`  
 
 Options:  
-
 ```
         -s CHARACTER, --str=CHARACTER
-                required; Input structure filename; default = NULL
+                Input structure filename; default = NULL
 
         -p CHARACTER, --popmap=CHARACTER
-                required; Input popmap filename; default = NULL
+                Input popmap filename; default = NULL
 
         -g CHARACTER, --geodist=CHARACTER
-                required; Input geoDist matrix file (tab-delimited)
+                Input geoDist matrix file (tab-delimited)
 
         -c COORDS, --coords=COORDS
-                required; Input coordinates file (tab-delimited)
+                Input coordinates file (tab-delimited)
 
         -w CHARACTER, --wd=CHARACTER
-                optional; Set working directory; default = ./
+                Set working directory; default = ./
 
         --prefix=CHARACTER
-                required; Specify prefix for output files in conStruct analysis
+                Specify prefix for output files in conStruct analysis
 
         --nchains=INTEGER
-                optional; Specify number of independend MCMC chains to run
+                Specify number of independend MCMC chains to run
 
         -i INTEGER, --niter=INTEGER
-                optional; Specify length of MCMC chain to run
+                Specify length of MCMC chain to run
 
         -K INTEGER, --K=INTEGER
-                required; Specify K value (Number of popualations) to run
+                Specify K value (Number of popualations) to run
 
         -a CHARACTER, --afreq=CHARACTER
-                optional; Specify allele frequency file to output
+                Specify allele frequency file to output
 
         -o CHARACTER, --outdir=CHARACTER
-                optional; Specify directory to write output files
+                Specify directory to write output files
+
+        -r, --onerowperind
+                Boolean; If toggled, specifies only one row per individual in structure file; default = FALSE
+
+        --data_column=DATA_COLUMN
+                Specify column index (1-based) for first data column in structure file; default = 3
+
+        -m MISSINGVAL, --missingval=MISSINGVAL
+                Specify missing data value in structure file; default = -9
 
         -h, --help
                 Show this help message and exit
@@ -231,9 +239,6 @@ The dependencies for runConstruct.R are all required for runXvalidation.R as wel
 
 Options:  
 ```
-        -k INTEGER, --minK=INTEGER
-                required; Specify minimum K value (lower case k)
-
         -K INTEGER, --maxK=INTEGER
                 required; Specify maximum K value (upper case K)
 
@@ -268,7 +273,7 @@ Required Input:
 
 1. You need to have run runConstruct.R first, which will write the .RData files to the output directory specified in the runConstruct.R options.  
 
-2. You need to specify the minimum and maximum K values that you ran runConstruct.R on. Currently, minK must be 1.  It's kind of a deprecated option.  
+2. You need to specify the maximum K value that you ran runConstruct.R on. The minimum K must be 1.   
 
 3. You need to specify the directory where the runConstruct.R files are stored using the --wd option.  
 
