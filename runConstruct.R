@@ -56,7 +56,19 @@ option_list <- list(make_option(c("-s", "--str"),
                                 type="character",
                                 default="./",
                                 help="Specify directory to write output files",
-                                metavar="character"))
+                                metavar="character"),
+                    make_option(c("-r", "--onerowperind"),
+                                action="store_true",
+                                default=FALSE,
+                                help="Boolean; If toggled, specifies only one row per individual in structure file; default = FALSE"),
+                    make_option(c("--data_column"),
+                                type="integer",
+                                default=3,
+                                help="Specify column index (1-based) for first data column in structure file; default = 3"),
+                    make_option(c("-m", "--missingval"),
+                                type="integer",
+                                default=-9,
+                                help="Specify missing data value in structure file; default = -9"))
 
 opt_parser <- OptionParser(option_list=option_list,
                            description="Rscript to run conStruct")
@@ -144,9 +156,9 @@ if (file.exists(paste0(opt$afreq, ".RData"))) {
 
 # Convert STRUCTURE file to conStruct allele frequency format
 afreq <- structure2conStruct(infile = opt$str, 
-                      onerowperind = FALSE, 
-                      start.loci = 3, 
-                      missing.datum = -9, 
+                      onerowperind = opt$onerowperind, 
+                      start.loci = opt$data_column, 
+                      missing.datum = opt$missingval, 
                       outfile = opt$afreq)
 
 
@@ -175,6 +187,9 @@ print(paste0("--nchains = ", opt$nchains))
 print(paste0("--niter = ", opt$niter))
 print(paste0("--K = ", opt$K))
 print(paste0("--afreq = ", opt$afreq))
+print(paste0("--onerowperind = ", opt$onerowperind))
+print(paste0("--data_column = ", opt$data_column))
+print(paste0("--missingval = ", opt$missingval))
 
 # Set prefixes for spatial (sp) and nonspatial (nsp) models
 sp.prefix <- paste0(opt$prefix, "_spK", opt$K)
