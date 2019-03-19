@@ -124,7 +124,13 @@ foreach
 parallel
 ```
 
-If you are working on a distributed HPC enviroment without sudo (root) privelidges, I highly recommend installing R using conda. You will also need to install r-essentials and r-base. E.g.:   
+If you are working on a distributed HPC enviroment without sudo (root) privelidges, I highly recommend installing R using conda. You can use the __Renv.yml__ file to create your environment with required packages. E.g.:  
+
+`conda env create -f Renv.yml`  
+
+__Installing the packages yourself__ 
+
+You will need to install r-essentials and r-base. E.g.:   
 
 `conda create -n r_env r-essentials r-base`
 
@@ -135,15 +141,13 @@ conda install -n r_env -c r r-doparallel
 conda install -n r_env -c r r-foreach
 ```
 
-conStruct and optparse are not available through conda, so you will have to install them within R:
+conStruct is not available through conda, so you will have to install it within R; also I had better luck installing optparse using install.packages as well:  
 
 ```
 R
 install.packages("optparse", repos="https://cran.r-project.org")
 install.packages("conStruct", repos="https://cran.r-project.org")
 ```
-
-I have also included an R.yml file that you can use to install the R packages available on conda. But you'll still need to install conStruct and optparse using install.packages()
 
 ### runConstruct.R options  
 
