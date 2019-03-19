@@ -4,12 +4,7 @@ if (!require("optparse")) stop("Error: The required package optparse is not inst
 library("optparse")
 
 # Set command-line arguments
-option_list <- list(make_option(c("-k", "--minK"),
-                                type="integer",
-                                default=NULL,
-                                help="Specify minimum K value (lower case k)",
-                                metavar="integer"),
-                    make_option(c("-K", "--maxK"),
+option_list <- list(make_option(c("-K", "--maxK"),
                                 type="integer",
                                 default=NULL,
                                 help="Specify maximum K value (upper case K)",
@@ -71,7 +66,6 @@ required.args <- function(arg, argString) {
 
 #####################################################################3
 # Require these arguments or stop
-required.args(opt2$minK, "--minK")
 required.args(opt2$maxK, "--maxK")
 required.args(opt2$nreps, "--nreps")
 required.args(opt2$nodes, "--nodes")
@@ -129,7 +123,7 @@ if (parallel) {
 # Run cross-validation
 conStruct.xvals <- x.validation(train.prop = opt2$trainProp,
                                 n.reps = opt2$nreps,
-                                K = opt2$minK:opt2$maxK,
+                                K = 1:opt2$maxK,
                                 freqs = pop.data.matrix,
                                 data.partitions = NULL,
                                 geoDist = geo.distMat,
@@ -205,10 +199,10 @@ dev.off()
 layer.contributions.sp <- matrix(NA,nrow=opt2$maxK,ncol=opt2$maxK)
 layer.contributions.nsp <- matrix(NA,nrow=opt2$maxK,ncol=opt2$maxK)
 
-# Get prefixes for Robj files between --minK and --maxK
+# Get prefixes for Robj files between 1 and --maxK
 all.sp <- character()
 all.nsp <- character()
-for (i in opt2$minK:opt2$maxK) {
+for (i in 1:opt2$maxK) {
   all.sp <- c(all.sp, paste0(opt$prefix, "_spK", i))
   all.nsp <- c(all.nsp, paste0(opt$prefix, "_nspK", i))
 }
@@ -219,11 +213,11 @@ setwd(script.dir)
 # Change to runConstruct.R directory
 setwd(opt2$wd)
 
-# Load --minK value's conStruct.resuls and data.block Robj files
+# Load K=1 conStruct.resuls and data.block Robj files
 load(paste0(all.sp[1], "_data.block.Robj"))
 load(paste0(all.sp[1], "_conStruct.results.Robj"))
 
-# Calculate layer contributions for --minK
+# Calculate layer contributions for K=1
 layer.contributions.sp[,1] <- c(calculate.layer.contribution(conStruct.results[[1]],data.block),rep(0,opt2$maxK-1))
 tmp.sp <- conStruct.results[[1]]$MAP$admix.proportions
 
@@ -246,7 +240,7 @@ for (i in 2:opt2$maxK) {
   tmp.sp <- conStruct.results[[1]]$MAP$admix.proportions[,tmp.order.sp]
 }
 
-# Load --minK value's conStruct.resuls and data.block Robj files
+# Load K=1 conStruct.resuls and data.block Robj files
 load(paste0(all.nsp[1], "_data.block.Robj"))
 load(paste0(all.nsp[1], "_conStruct.results.Robj"))
 
@@ -285,11 +279,11 @@ barplot(layer.contributions.sp,
         col=c("blue", "red", "goldenrod1", "forestgreen", "darkorchid1"),
         xlab="",
         ylab="layer contributions (spatial)",
-        names.arg=paste0("K=",opt2$minK:opt2$maxK))
+        names.arg=paste0("K=",1:opt2$maxK))
 barplot(layer.contributions.nsp,
         col=c("blue", "red", "goldenrod1", "forestgreen", "darkorchid1"),
         xlab="",
         ylab="layer contributions (non-spatial)",
-        names.arg=paste0("K=",opt2$minK:opt2$maxK))
+        names.arg=paste0("K=",1:opt2$maxK))
 dev.off()
 
