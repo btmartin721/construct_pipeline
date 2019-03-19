@@ -213,7 +213,7 @@ I also strongly recommend that you assess the trace output files produced in thi
 
 Run the script as follows:
 
-`Rscript runConstruct.R [options]`
+`Rscript runConstruct.R [options...]`
 
 ## Step 3 - runXvalidation.R  
 
