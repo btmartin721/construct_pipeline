@@ -15,11 +15,16 @@ import utm
 import numpy as np
 import pandas as pd
 import geopandas as gp
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 from collections import defaultdict, OrderedDict
 from geopy import distance
+from scipy.cluster.vq import kmeans, vq
+from scipy.spatial.distance import cdist
 from shapely.geometry import Point, Polygon
 
+mpl.use("Agg")
 
 def main():
 
@@ -27,15 +32,14 @@ def main():
 
     validate_file_exists(arguments.coords)
     validate_file_exists(arguments.popmap)
+    if not arguments.maxK:
+        popmap = read_popmap(arguments.popmap)
+        popcounts = get_popcounts(popmap)
 
-    popmap = read_popmap(arguments.popmap)
-    popcounts = get_popcounts(popmap)
+        id_col = arguments.id.lower().strip()
 
-    id_col = arguments.id.lower().strip()
-
-    popdf = pd.DataFrame.from_records(popmap, columns=[id_col, "POPDF"])
-
-    popd = get_popdict(popmap)
+        popdf = pd.DataFrame.from_records(popmap, columns=[id_col, "POPDF"])
+        popd = get_popdict(popmap)
 
     lat_col = arguments.lat.strip().lower()
     lon_col = arguments.long.strip().lower()
@@ -64,38 +68,82 @@ def main():
     else:
         latlon_list = zip(df[lat_col].tolist(), df[lon_col].tolist())
         df = add_latlon_to_df(df, latlon_list)
+
     # Merge df and popdf on arguments.id. Will drop individuals not in popmap.
-    df2 = df.merge(popdf, how="inner", on=id_col)
-    df2.dropna(subset=["DD_LATCOL", "DD_LONCOL"], inplace=True)
+    if not arguments.maxK:
+        df2 = df.merge(popdf, how="inner", on=id_col)
+        df2.dropna(subset=["DD_LATCOL", "DD_LONCOL"], inplace=True)
 
-    # Initialize coordinate reference system
-    # Can be specified by user with --epsg option.
-    e = "epsg:" + str(arguments.epsg)
-    crs = {"init": e}
-    geodf = coordinates2polygons(df2, crs)
-    # Write polygons to shapefile if option toggled on.
-    if arguments.polygons:
-        write_shapefile(geodf, arguments.polygons)
+        # Initialize coordinate reference system
+        # Can be specified by user with --epsg option.
+        e = "epsg:" + str(arguments.epsg)
+        crs = {"init": e}
+        geodf = coordinates2polygons(df2, crs)
+        # Write polygons to shapefile if option toggled on.
+        if arguments.polygons:
+            write_shapefile(geodf, arguments.polygons)
 
-    centroids_df = get_centroids(geodf, crs)
+        centroids_df = get_centroids(geodf, crs)
 
-    # Write centroids to shapefile if option toggled on.
-    if arguments.centroids:
-        write_shapefile(centroids_df, arguments.centroids)
+        # Write centroids to shapefile if option toggled on.
+        if arguments.centroids:
+            write_shapefile(centroids_df, arguments.centroids)
 
-    # Calculate great circle distance using geopy.distance
-    distances = calculate_greatcircledist(centroids_df)
+        # Calculate great circle distance using geopy.distance
+        distances = calculate_greatcircledist(centroids_df)
 
-    # Replace distances index with population IDs
-    distances.set_index(centroids_df["POPDF"], inplace=True)
+        # Replace distances index with population IDs
+        distances.set_index(centroids_df["POPDF"], inplace=True)
 
-    # Write coordinates to CSV
-    write_coords(centroids_df, arguments.coord_outfile)
+        # Write coordinates to CSV
+        write_coords(centroids_df, arguments.coord_outfile)
 
-    # Write matrix to CSV
-    write_matrix(distances, arguments.geodist)
+        # Write matrix to CSV
+        write_matrix(distances, arguments.geodist)
+
+    elif arguments.maxK:
+        K, avgWithinSS, centroids = get_kmeans(arguments.maxK, df, arguments.lat, arguments.long)
+        if arguments.plotK:
+            plot_kmeans(K, avgWithinSS)
+            return 0
+
+
+
     return 0
 
+def plot_kmeans(K, avgWithinSS):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(K, avgWithinSS, "b*-")
+    plt.grid(True)
+    plt.xlabel("Number of Cluster")
+    plt.ylabel("Average Within-cluster Sum of Squares")
+    tt = plt.title("Elbow Plot for K-Means Clustering")
+    fig.savefig("Kmeans.png")
+
+def get_kmeans(maxK, df, latName, lonName):
+
+    # Get pd.DataFrame for lat/lon coordinates
+    coords = df[[latName, lonName]].values
+
+    # Specify all K values
+    K = range(1, maxK+1)
+
+    # Apply kmeans for K=1 to K=maxK
+    # scipy.cluster.vq.kmeans
+    KM = [kmeans(coords, k) for k in K]
+
+    # Cluster centroids
+    centroids = [cent for (cent,var) in KM]
+    D_k = [cdist(coords, cent, "euclidean") for cent in centroids]
+
+    cIdx = [np.argmin(D, axis=1) for D in D_k]
+    dist = [np.min(D,axis=1) for D in D_k]
+
+    # Get average sum of squares within K groups
+    avgWithinSS = [sum(d)/coords.shape[0] for d in dist]
+
+    return K, avgWithinSS, centroids
 def write_coords(gdf, outfile):
     """
     Writes comma-separated lon/lat coordinates to file
@@ -443,6 +491,18 @@ def Get_Arguments():
                                 help="String; Specify output file for lat/lon "
                                 "coordinates (Tab-delimited; "
                                 "default = coords.out.txt")
+    optional_args.add_argument("-K", "--maxK",
+                                type=int,
+                                required=False,
+                                default=None,
+                                nargs="?",
+                                help="Specify maximum K value for Kmeans "
+                                "clustering; default = None")
+    optional_args.add_argument("--plotK",
+                                action="store_true",
+                                default=False,
+                                help="Boolean; Makes elbow plot for Kmeans; "
+                                "turns off all other functionality; default = False")
     optional_args.add_argument("-h", "--help",
                                 action="help",
                                 help="Displays this help menu")
