@@ -6,70 +6,88 @@ if (!require("optparse")) stop("Error: The required package optparse is not inst
 option_list <- list(make_option(c("-s", "--str"), 
                                 type="character", 
                                 default=NULL, 
-                                help="Input structure filename; default = NULL", 
+                                help="Required; Input structure filename; default = NULL", 
                                 metavar="character"),
                     make_option(c("-p", "--popmap"),
                                  type="character",
                                  default=NULL,
-                                 help="Input popmap filename; default = NULL",
+                                 help="Required; Input popmap filename; default = NULL",
                                  metavar="character"),
                     make_option(c("-g", "--geodist"),
                                 type="character",
                                 default=NULL,
-                                help="Input geoDist matrix file (tab-delimited)",
+                                help="Required; Input geoDist matrix file (tab-delimited)",
                                 metavar="character"),
                     make_option(c("-c", "--coords"),
                                 type="character",
                                 default=NULL,
-                                help="Input coordinates file (tab-delimited)"),
+                                help="Required; Input coordinates file (tab-delimited)"),
+                    make_option(c("--prefix"),
+                                type="character",
+                                default=NULL,
+                                help="Required; Specify prefix for output files in conStruct analysis",
+                                metavar="character"),
+                    make_option(c("-K", "--K"),
+                                type="integer",
+                                default=NULL,
+                                help="Required; Specify K value (Number of popualations) to run",
+                                metavar="integer"),
+                    make_option(c("--spatial"),
+                                action="store_true",
+                                default=FALSE,
+                                help="Boolean; Toggle on spatial model; --spatial and/or --nonspatial are required; default = FALSE"),
+                    make_option(c("--nonspatial"),
+                                action="store_true",
+                                default=FALSE,
+                                help="Boolean; Toggle on nonspatial model; --spatial and/or --nonspatial are required; default = FALSE"),
                     make_option(c("-w", "--wd"),
                                 type="character",
                                 default="./",
                                 metavar="character",
-                                help="Set working directory; default = ./"),
-                    make_option(c("--prefix"),
-                                type="character",
-                                default=NULL,
-                                help="Specify prefix for output files in conStruct analysis",
-                                metavar="character"),
+                                help="Optional; Set working directory; default = ./"),
                     make_option(c("--nchains"),
                                 type="integer",
                                 default=1,
-                                help="Specify number of independend MCMC chains to run",
+                                help="Optional; Specify number of independend MCMC chains to run",
                                 metavar="integer"),
                     make_option(c("-i", "--niter"),
                                 type="integer",
                                 default=1000,
-                                help="Specify length of MCMC chain to run",
-                                metavar="integer"),
-                    make_option(c("-K", "--K"),
-                                type="integer",
-                                default=NULL,
-                                help="Specify K value (Number of popualations) to run",
+                                help="Optional; Specify length of MCMC chain to run",
                                 metavar="integer"),
                     make_option(c("-a", "--afreq"),
                                 type="character",
                                 default="construct.out",
-                                help="Specify allele frequency file to output",
+                                help="Optional; Specify allele frequency file to output",
                                 metavar="character"),
                     make_option(c("-o", "--outdir"),
                                 type="character",
                                 default="./",
-                                help="Specify directory to write output files",
+                                help="Optional; Specify directory to write output files",
                                 metavar="character"),
                     make_option(c("-r", "--onerowperind"),
                                 action="store_true",
                                 default=FALSE,
-                                help="Boolean; If toggled, specifies only one row per individual in structure file; default = FALSE"),
+                                help="Optional, Boolean; If toggled, specifies only one row per individual in structure file; default = FALSE"),
                     make_option(c("--data_column"),
                                 type="integer",
                                 default=3,
-                                help="Specify column index (1-based) for first data column in structure file; default = 3"),
+                                help="Optional; Specify column index (1-based) for first data column in structure file; default = 3"),
                     make_option(c("-m", "--missingval"),
                                 type="integer",
                                 default=-9,
-                                help="Specify missing data value in structure file; default = -9"))
-
+                                help="Optional; Specify missing data value in structure file; default = -9"),
+                    make_option(c("-D", "--adapt_delta"),
+                                type="numeric",
+                                default=0.8,
+                                help="Optional; Set adapt_delta value if you are having mixing problems",
+                                metavar="numeric"),
+                    make_option(c("-d", "--max_treedepth"),
+                                type="numeric",
+                                default=10,
+                                help="Optional; Set max_treedepth",
+                                metavar="numeric"))
+                    
 opt_parser <- OptionParser(option_list=option_list,
                            description="Rscript to run conStruct")
 
@@ -114,17 +132,21 @@ required.args <- function(arg, argString) {
 # Make sure dependencies are installed and then load them
 if (!require("conStruct")) stop("Error: The required package conStruct is not installed")
 
-# Tell user what the WD will be
-print(paste("Setting working directory to", getwd(), sep="... "))
-
 # Set working directory
 setwd(opt$wd)
+
+# Tell user what the WD will be
+print(paste("Setting working directory to", getwd(), sep="... "))
 
 required.args(opt$prefix, "--prefix")
 required.args(opt$str, "--str")
 required.args(opt$coords, "--coords")
 required.args(opt$K, "--K")
 required.args(opt$geodist, "--geodist")
+
+if (!opt$spatial && !opt$nonspatial) {
+  stop("Error: One or both of the following boolean options must be toggled: --spatial and/or --nonspatial")
+}
 
 # Read input files specified on command-line
 str.file <- read.infile(opt$str, FALSE)
@@ -190,6 +212,10 @@ print(paste0("--afreq = ", opt$afreq))
 print(paste0("--onerowperind = ", opt$onerowperind))
 print(paste0("--data_column = ", opt$data_column))
 print(paste0("--missingval = ", opt$missingval))
+print(paste0("--spatial = ", opt$spatial))
+print(paste0("--nonspatial = ", opt$nonspatial))
+print(paste0("--adapt_delta = ", opt$adapt_delta))
+print(paste0("--max_treedepth = ", opt$max_treedepth))
 
 # Set prefixes for spatial (sp) and nonspatial (nsp) models
 sp.prefix <- paste0(opt$prefix, "_spK", opt$K)
@@ -206,8 +232,10 @@ if (opt$K == 1) {
   }
 }
 
+if (opt$spatial){
+  
 # Spatial model
-construct.sp <- conStruct(spatial = TRUE,
+  construct.sp <- conStruct(spatial = TRUE,
                              K = opt$K,
                              freqs = pop.data.matrix,
                              geoDist = geo.distMat,
@@ -216,10 +244,14 @@ construct.sp <- conStruct(spatial = TRUE,
                              n.chains = opt$nchains,
                              n.iter = opt$niter,
                              make.figs = TRUE,
-                             save.files = TRUE)
-  
+                             save.files = TRUE,
+                             adapt_delta = opt$adapt_delta,
+                             max_treedepth = opt$max_treedepth)
+}
+
+if (opt$nonspatial) {
 # Non-spatial model
-construct.nsp <- conStruct(spatial = FALSE,
+  construct.nsp <- conStruct(spatial = FALSE,
                                K = opt$K,
                                freqs = pop.data.matrix,
                                geoDist = NULL,
@@ -228,9 +260,12 @@ construct.nsp <- conStruct(spatial = FALSE,
                                n.chains = opt$nchains,
                                n.iter = opt$niter,
                                make.figs = TRUE,
-                               save.files = TRUE)
+                               save.files = TRUE,
+                               adapt_delta = opt$adapt_delta,
+                               max_treedepth = opt$max_treedepth)
+}
 
-if (opt$K == 1) {
+if (opt$K == 1 && opt$spatial) {
   save(pop.data.matrix, 
        geo.distMat, 
        coordMat, 
