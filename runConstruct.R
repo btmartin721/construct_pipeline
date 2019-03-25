@@ -145,7 +145,7 @@ required.args(opt$K, "--K")
 required.args(opt$geodist, "--geodist")
 
 if (!opt$spatial && !opt$nonspatial) {
-  stop("Error: One or both of the following boolean options must be toggled: --spatial and/or --nonspatial")
+  stop("One or both of the following boolean options must be toggled: --spatial and/or --nonspatial")
 }
 
 # Read input files specified on command-line
@@ -245,8 +245,7 @@ if (opt$spatial){
                              n.iter = opt$niter,
                              make.figs = TRUE,
                              save.files = TRUE,
-                             adapt_delta = opt$adapt_delta,
-                             max_treedepth = opt$max_treedepth)
+                             control = setNames(list(opt$adapt_delta, opt$max_treedepth),c("adapt_delta", "max_treedepth")))
 }
 
 if (opt$nonspatial) {
@@ -261,8 +260,7 @@ if (opt$nonspatial) {
                                n.iter = opt$niter,
                                make.figs = TRUE,
                                save.files = TRUE,
-                               adapt_delta = opt$adapt_delta,
-                               max_treedepth = opt$max_treedepth)
+                               control = setNames(list(opt$adapt_delta, opt$max_treedepth), c("adapt_delta", "max_treedepth")))
 }
 
 if (opt$K == 1 && opt$spatial) {
