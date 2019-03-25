@@ -7,42 +7,41 @@ library("optparse")
 option_list <- list(make_option(c("-K", "--maxK"),
                                 type="integer",
                                 default=NULL,
-                                help="Specify maximum K value (upper case K)",
+                                help="Required; Specify maximum K value (upper case K)",
                                 metavar="integer"),
                     make_option(c("-r", "--nreps"),
                                 type="integer",
                                 default=NULL,
-                                help="Specify number of cross-validation replicates",
+                                help="Required; Specify number of cross-validation replicates",
+                                metavar="integer"),
+                    make_option(c("-w", "--wd"),
+                                type="character",
+                                default=NULL,
+                                help="Required; Specify directory containing output from runConstruct.R",
+                                metavar="character"),
+                    make_option(c("-n", "--nodes"),
+                                type="integer",
+                                default=NULL,
+                                help="Required; Specify number of CPU cores for parallelization",
                                 metavar="integer"),
                     make_option(c("-t", "--trainProp"),
                                 type="numeric",
                                 default=0.9,
-                                help="Specify training proportion for cross-validation",
+                                help="Optional; Specify training proportion for cross-validation",
                                 metavar="numeric"),
-                    make_option(c("-n", "--nodes"),
-                                type="integer",
-                                default=NULL,
-                                help="Specify number of CPU cores for parallelization",
-                                metavar="integer"),
                     make_option(c("-f", "--saveFiles"),
                                 action="store_true",
                                 default = FALSE,
-                                help="Boolean; Toggle save Robj files from cross-validation; will save lots of files; default=FALSE"),
+                                help="Optional, Boolean; Toggle save Robj files from cross-validation; will save lots of files; default=FALSE"),
                     make_option(c("-F", "--saveFigs"),
                                 action="store_false",
                                 default=TRUE,
-                                help="Boolean; Don't save figures from cross-validation; default=TRUE"),
+                                help="Optional, Boolean; Don't save figures from cross-validation; default=TRUE"),
                     make_option(c("-o", "--outdir"),
                                 type="character",
                                 default="./",
-                                help="Specify directory for output files; will be created if doesn't exist",
-                                metavar="character"),
-                    make_option(c("-w", "--wd"),
-                                type="character",
-                                default=NULL,
-                                help="Specify directory containing output from runConstruct.R",
+                                help="Optional, Specify directory for output files; will be created if doesn't exist",
                                 metavar="character"))
-                    
 
 opt_parser <- OptionParser(option_list=option_list,
                            description="Rscript to run cross-validation for conStruct")
@@ -103,6 +102,24 @@ if (!file.exists(paste0(opt$prefix, "_environment.RData"))) {
 
 # load runConstruct.R environment
 load(paste0(opt$prefix, "_environment.RData"))
+
+for (i in 1:opt2$maxK) {
+  
+  if (!file.exists(paste0(opt$prefix, "_spK", i, "_data.block.Robj"))) {
+    stop(paste0("Error: Could not find spatial data.block.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
+  }
+  if (!file.exists(paste0(opt$prefix, "_spK", i, "_conStruct.results.Robj"))) {
+    stop(paste0("Error: Could not find spatial conStruct.results.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
+  }
+  
+  if (!file.exists(paste0(opt$prefix, "_nspK", i, "_data.block.Robj"))) {
+    stop(paste0("Error: Could not find nonspatial data.block.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
+  }
+  if (!file.exists(paste0(opt$prefix, "_spK", i, "_conStruct.results.Robj"))) {
+    stop(paste0("Error: Could not find nonspatial conStruct.results.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
+  }
+  
+}
 
 # Prefix for cross-validation analyses
 xval.prefix <- paste0(opt$prefix, "_xval")
