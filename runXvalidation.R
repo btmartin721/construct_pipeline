@@ -106,17 +106,17 @@ load(paste0(opt$prefix, "_environment.RData"))
 for (i in 1:opt2$maxK) {
   
   if (!file.exists(paste0(opt$prefix, "_spK", i, "_data.block.Robj"))) {
-    stop(paste0("Error: Could not find spatial data.block.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
+    stop(paste0("Could not find spatial data.block.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
   }
   if (!file.exists(paste0(opt$prefix, "_spK", i, "_conStruct.results.Robj"))) {
-    stop(paste0("Error: Could not find spatial conStruct.results.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
+    stop(paste0("Could not find spatial conStruct.results.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
   }
   
   if (!file.exists(paste0(opt$prefix, "_nspK", i, "_data.block.Robj"))) {
-    stop(paste0("Error: Could not find nonspatial data.block.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
+    stop(paste0("Could not find nonspatial data.block.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
   }
   if (!file.exists(paste0(opt$prefix, "_spK", i, "_conStruct.results.Robj"))) {
-    stop(paste0("Error: Could not find nonspatial conStruct.results.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
+    stop(paste0("Could not find nonspatial conStruct.results.Robj output for K", i, " (from runConstruct.R). Make sure both spatial and nonspatial files have the same prefix and are in the same directory"))
   }
   
 }
@@ -150,7 +150,10 @@ conStruct.xvals <- x.validation(train.prop = opt2$trainProp,
                                 make.figs = opt2$saveFigs,
                                 save.files = opt2$saveFiles,
                                 parallel = parallel,
-                                n.nodes = opt2$nodes)
+                                n.nodes = opt2$nodes,
+                                control = setNames(list(opt$adapt_delta, 
+                                                        opt$max_treedepth), 
+                                                   c("adapt_delta", "max_treedepth")))
 if(parallel) {
   # End parallelization
   stopCluster(cl)
