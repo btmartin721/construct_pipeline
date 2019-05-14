@@ -32,21 +32,19 @@ def main():
 
     validate_file_exists(arguments.coords)
     validate_file_exists(arguments.popmap)
-    if not arguments.maxK:
-        popmap = read_popmap(arguments.popmap)
-        popcounts = get_popcounts(popmap)
+    popmap = read_popmap(arguments.popmap)
+    popcounts = get_popcounts(popmap)
 
-        id_col = arguments.id.lower().strip()
+    id_col = arguments.id.lower().strip()
 
-        popdf = pd.DataFrame.from_records(popmap, columns=[id_col, "POPDF"])
-        popd = get_popdict(popmap)
+    popdf = pd.DataFrame.from_records(popmap, columns=[id_col, "POPDF"])
+    popd = get_popdict(popmap)
 
     lat_col = arguments.lat.strip().lower()
     lon_col = arguments.long.strip().lower()
 
     df = pd.read_csv(arguments.coords, header=0)
     df.columns = [x.strip().lower() for x in df.columns]
-
     coord_format = arguments.format.lower().strip()
 
     if coord_format == "utm" and arguments.zone:
@@ -70,48 +68,40 @@ def main():
         df = add_latlon_to_df(df, latlon_list)
 
     # Merge df and popdf on arguments.id. Will drop individuals not in popmap.
-    if not arguments.maxK:
-        df2 = df.merge(popdf, how="inner", on=id_col)
-        df2.dropna(subset=["DD_LATCOL", "DD_LONCOL"], inplace=True)
+    df2 = df.merge(popdf, how="inner", on=id_col)
+    df2.dropna(subset=["DD_LATCOL", "DD_LONCOL"], inplace=True)
 
-        # Initialize coordinate reference system
-        # Can be specified by user with --epsg option.
-        e = "epsg:" + str(arguments.epsg)
-        crs = {"init": e}
-        geodf = coordinates2polygons(df2, crs)
-        # Write polygons to shapefile if option toggled on.
-        if arguments.polygons:
-            write_shapefile(geodf, arguments.polygons)
+    # Initialize coordinate reference system
+    # Can be specified by user with --epsg option.
+    e = "epsg:" + str(arguments.epsg)
+    crs = {"init": e}
+    geodf = coordinates2polygons(df2, crs)
+    # Write polygons to shapefile if option toggled on.
+    if arguments.polygons:
+        write_shapefile(geodf, arguments.polygons)
 
-        centroids_df = get_centroids(geodf, crs)
+    centroids_df = get_centroids(geodf, crs)
 
-        # Write centroids to shapefile if option toggled on.
-        if arguments.centroids:
-            write_shapefile(centroids_df, arguments.centroids)
+    # Write centroids to shapefile if option toggled on.
+    if arguments.centroids:
+        write_shapefile(centroids_df, arguments.centroids)
 
-        # Calculate great circle distance using geopy.distance
-        distances = calculate_greatcircledist(centroids_df)
+    # Calculate great circle distance using geopy.distance
+    distances = calculate_greatcircledist(centroids_df)
 
-        # Replace distances index with population IDs
-        distances.set_index(centroids_df["POPDF"], inplace=True)
+    # Replace distances index with population IDs
+    distances.set_index(centroids_df["POPDF"], inplace=True)
 
-        # Write coordinates to CSV
-        write_coords(centroids_df, arguments.coord_outfile)
+    # Write coordinates to CSV
+    write_coords(centroids_df, arguments.coord_outfile)
 
-        # Write matrix to CSV
-        write_matrix(distances, arguments.geodist)
-
-    elif arguments.maxK:
-        K, avgWithinSS, centroids = get_kmeans(arguments.maxK, df, arguments.lat, arguments.long)
-        if arguments.plotK:
-            plot_kmeans(K, avgWithinSS)
-            return 0
-
-
+    # Write matrix to CSV
+    write_matrix(distances, arguments.geodist)
 
     return 0
 
 def plot_kmeans(K, avgWithinSS):
+    # Under development.
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.plot(K, avgWithinSS, "b*-")
@@ -122,7 +112,7 @@ def plot_kmeans(K, avgWithinSS):
     fig.savefig("Kmeans.png")
 
 def get_kmeans(maxK, df, latName, lonName):
-
+    # Under development.
     # Get pd.DataFrame for lat/lon coordinates
     coords = df[[latName, lonName]].values
 
@@ -144,6 +134,20 @@ def get_kmeans(maxK, df, latName, lonName):
     avgWithinSS = [sum(d)/coords.shape[0] for d in dist]
 
     return K, avgWithinSS, centroids
+
+def msg(name=None):
+    return """
+    geodist.py
+    [-c COORDS_FILE]
+    [-p POPMAP_FILE]
+    [-i IND_COLUMN]
+    [--lat LAT_COLUMN]
+    [--long LONG_COLUMN]
+    [Any Optional Arguments]
+
+    This program was written by Bradley T. Martin, PhD Candidate, University of Arkansas
+    Please submit any issues or bug reports to btm002@email.uark.edu"""
+
 def write_coords(gdf, outfile):
     """
     Writes comma-separated lon/lat coordinates to file
@@ -397,7 +401,7 @@ def Get_Arguments():
     """
     parser = argparse.ArgumentParser(description="Calculates geodesic distance "
                                     "between samples given XY coordinates",
-                                    add_help=False)
+                                    add_help=False, usage=msg())
 
     required_args = parser.add_argument_group("Required Arguments")
     optional_args = parser.add_argument_group("Optional Arguments")
@@ -491,22 +495,15 @@ def Get_Arguments():
                                 help="String; Specify output file for lat/lon "
                                 "coordinates (Tab-delimited; "
                                 "default = coords.out.txt")
-    optional_args.add_argument("-K", "--maxK",
-                                type=int,
-                                required=False,
-                                default=None,
-                                nargs="?",
-                                help="Specify maximum K value for Kmeans "
-                                "clustering; default = None")
-    optional_args.add_argument("--plotK",
-                                action="store_true",
-                                default=False,
-                                help="Boolean; Makes elbow plot for Kmeans; "
-                                "turns off all other functionality; default = False")
     optional_args.add_argument("-h", "--help",
                                 action="help",
                                 help="Displays this help menu")
 
+
+    if len(sys.argv)==1:
+        print("\nExiting because no command-line options were called.\n")
+        parser.print_help(sys.stderr)
+        sys.exit(1)
 
     args = parser.parse_args()
 
